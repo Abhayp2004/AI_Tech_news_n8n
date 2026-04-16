@@ -17,8 +17,8 @@ An `n8n` workflow that collects AI and technology stories every 6 hours and send
 
 ## Repository contents
 
-- `/home/runner/work/AI_Tech_news_n8n/AI_Tech_news_n8n/AI & Tech News → Telegram (No AI).json` — importable n8n workflow
-- `/home/runner/work/AI_Tech_news_n8n/AI_Tech_news_n8n/README.md` — project documentation
+- `AI & Tech News → Telegram (No AI).json` — importable n8n workflow
+- `README.md` — project documentation
 
 ## Requirements
 
