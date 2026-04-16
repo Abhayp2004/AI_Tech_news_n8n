@@ -2,6 +2,8 @@
 
 An `n8n` workflow that collects AI and technology stories every 6 hours and sends a curated digest to Telegram.
 
+<img src="n8n.png"> <img src="telegram_news.png">
+
 ## What this workflow does
 
 - Triggers automatically every 6 hours
