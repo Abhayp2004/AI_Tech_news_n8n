@@ -1,0 +1,406 @@
+{
+  "name": "AI & Tech News → Telegram (No AI)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "83c8826e-f5c1-4cca-8c51-116d759b8a7f",
+      "name": "Schedule Trigger (Every 6 Hours)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -16,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.reddit.com/r/artificial/hot.json?limit=10",
+        "options": {}
+      },
+      "id": "4ecf11bd-d34a-4d15-adf6-1daf71e07d3c",
+      "name": "Fetch r/artificial",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.reddit.com/r/MachineLearning/hot.json?limit=10",
+        "options": {}
+      },
+      "id": "71f4eb35-d9ae-4650-b44e-14ed5af10c66",
+      "name": "Fetch r/MachineLearning",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.reddit.com/r/technology/hot.json?limit=10",
+        "options": {}
+      },
+      "id": "6fae224a-6afb-4ebd-adc9-999217a5d524",
+      "name": "Fetch r/technology",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://hacker-news.firebaseio.com/v0/topstories.json",
+        "options": {}
+      },
+      "id": "c176aac0-c7fa-4f72-992e-71c56635a5bd",
+      "name": "Fetch HackerNews IDs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://techcrunch.com/feed/",
+        "options": {}
+      },
+      "id": "e72b4ef3-7c4f-4620-8a4a-73837ffdeae0",
+      "name": "Fetch TechCrunch RSS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://feeds.feedburner.com/venturebeat/SZYF",
+        "options": {}
+      },
+      "id": "83e57cbb-b7fc-481a-9496-ca12858f41d1",
+      "name": "Fetch VentureBeat RSS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        688
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect outputs from all 6 fetch nodes\nconst sources = [\n  { data: $('Fetch r/artificial').first().json, source: 'r/artificial', type: 'reddit' },\n  { data: $('Fetch r/MachineLearning').first().json, source: 'r/MachineLearning', type: 'reddit' },\n  { data: $('Fetch r/technology').first().json, source: 'r/technology', type: 'reddit' },\n  { data: $('Fetch HackerNews IDs').first().json, source: 'Hacker News', type: 'hn' },\n  { data: $('Fetch TechCrunch RSS').first().json, source: 'TechCrunch', type: 'rss' },\n  { data: $('Fetch VentureBeat RSS').first().json, source: 'VentureBeat', type: 'rss' }\n];\n\nconst aiKeywords = [\n  'ai', 'artificial intelligence', 'machine learning', 'llm', 'gpt', 'chatgpt',\n  'openai', 'anthropic', 'gemini', 'claude', 'deepmind', 'neural', 'robot',\n  'automation', 'tech', 'software', 'startup', 'apple', 'google', 'microsoft',\n  'meta', 'nvidia', 'chip', 'gpu', 'model', 'agent', 'coding', 'developer',\n  'api', 'open source', 'github', 'cyber', 'quantum', 'data', 'cloud'\n];\n\nlet allPosts = [];\n\nfor (const s of sources) {\n  try {\n    // --- REDDIT ---\n    if (s.type === 'reddit' && s.data?.data?.children) {\n      s.data.data.children\n        .filter(c => c.kind === 't3')\n        .forEach(c => {\n          allPosts.push({\n            title: c.data.title || '',\n            url: `https://reddit.com${c.data.permalink}`,\n            source: s.source,\n            score: c.data.score || 0,\n            comments: c.data.num_comments || 0,\n            type: 'reddit'\n          });\n        });\n    }\n\n    // --- HACKER NEWS ---\n    if (s.type === 'hn' && Array.isArray(s.data)) {\n      // We only have IDs here — we'll use top 5 with a placeholder\n      // and fetch titles via separate node\n      s.data.slice(0, 8).forEach(id => {\n        allPosts.push({\n          title: `HN Story #${id}`,\n          url: `https://news.ycombinator.com/item?id=${id}`,\n          source: 'Hacker News',\n          score: 300,\n          comments: 0,\n          type: 'hn',\n          hnId: id\n        });\n      });\n    }\n\n    // --- RSS (raw XML string) ---\n    if (s.type === 'rss' && typeof s.data === 'string') {\n      const items = s.data.split('<item>').slice(1);\n      items.slice(0, 8).forEach(block => {\n        const titleMatch = block.match(/<title>(?:<!\\[CDATA\\[)?([^\\]<]+)(?:\\]\\]>)?<\\/title>/);\n        const linkMatch = block.match(/<link>([^<]+)<\\/link>/) || block.match(/<link[^>]+href=\"([^\"]+)\"/);\n        const title = titleMatch ? titleMatch[1].trim() : '';\n        const url = linkMatch ? linkMatch[1].trim() : '';\n        if (title && url) {\n          allPosts.push({ title, url, source: s.source, score: 400, comments: 0, type: 'rss' });\n        }\n      });\n    }\n\n  } catch(e) {}\n}\n\n// Filter by AI/tech keywords\nconst filtered = allPosts.filter(p => {\n  if (!p.title || p.title.length < 5) return false;\n  const lower = p.title.toLowerCase();\n  return aiKeywords.some(kw => lower.includes(kw));\n});\n\n// Deduplicate\nconst seen = new Set();\nconst unique = filtered.filter(p => {\n  const key = p.title.toLowerCase().substring(0, 50);\n  if (seen.has(key)) return false;\n  seen.add(key);\n  return true;\n});\n\n// Sort: Reddit by upvotes, RSS by position\nconst sorted = unique.sort((a, b) => b.score - a.score);\n\n// Top 12 posts\nconst top12 = sorted.slice(0, 12);\n\nreturn [{ json: { hasContent: top12.length > 0, posts: top12 } }];"
+      },
+      "id": "7771d243-2c5f-449a-97f1-1db7a2afeb34",
+      "name": "Merge & Filter News",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.hasContent }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "f0533504-f517-4bd7-974c-edcd350fc319",
+      "name": "Has News?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        800,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const posts = $('Merge & Filter News').first().json.posts;\n\nconst now = new Date();\nconst timeIST = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });\nconst dateIST = now.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });\n\n// Source emoji map\nconst sourceEmoji = {\n  'r/artificial': '🤖',\n  'r/MachineLearning': '🧠',\n  'r/technology': '💻',\n  'Hacker News': '🔶',\n  'TechCrunch': '🟢',\n  'VentureBeat': '🔵'\n};\n\n// Build header message\nconst header = `━━━━━━━━━━━━━━━━━━━━━\n🚀 *AI & TECH NEWS DIGEST*\n📅 ${dateIST}  🕐 ${timeIST} IST\n━━━━━━━━━━━━━━━━━━━━━\n📡 Sources: Reddit • HackerNews • TechCrunch • VentureBeat\n🔢 Stories fetched: ${posts.length}`;\n\n// Build stories — split into 2 messages of 6 each to avoid Telegram limit\nconst half1 = posts.slice(0, 6);\nconst half2 = posts.slice(6, 12);\n\nconst formatStory = (p, i) => {\n  const emoji = sourceEmoji[p.source] || '📌';\n  const scoreText = p.type === 'reddit' ? `👍 ${p.score}  💬 ${p.comments}` : `📡 ${p.source}`;\n  return `${emoji} *${i + 1}. ${p.title}*\\n${scoreText}\\n🔗 ${p.url}`;\n};\n\nconst msg1 = `📰 *TOP STORIES (1-6)*\\n━━━━━━━━━━━━━━━━━━━━━\\n\\n` +\n  half1.map((p, i) => formatStory(p, i)).join('\\n\\n');\n\nconst msg2 = half2.length > 0\n  ? `📰 *TOP STORIES (7-12)*\\n━━━━━━━━━━━━━━━━━━━━━\\n\\n` +\n    half2.map((p, i) => formatStory(p, i + 6)).join('\\n\\n')\n  : null;\n\nconst footer = `✅ *That's your digest!*\\n_⏰ Next update in 6 hours_`;\n\nconst messages = [header, msg1];\nif (msg2) messages.push(msg2);\nmessages.push(footer);\n\nreturn [{ json: { messages, chatId: 'YOUR_CHAT_ID' } }];"
+      },
+      "id": "dcf5ebe2-0da6-495a-92bc-c4871f33e0a8",
+      "name": "Format for Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn data.messages.map(text => ({ json: { text, chatId: data.chatId } }));"
+      },
+      "id": "053d5153-16db-4873-b152-94ec8d090a3c",
+      "name": "Split Messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "5149382434",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "d5886bb6-ecac-42ff-8bac-ff7be6ff0c65",
+      "name": "Send to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1440,
+        272
+      ],
+      "webhookId": "775c9501-2693-4ad8-b62e-2f33bd1b4fd3",
+      "credentials": {
+        "telegramApi": {
+          "id": "E1GyixjS6lmr6xtH",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "5149382434",
+        "text": "⚠️ No AI/tech news found this cycle. Will retry in 6 hours.",
+        "additionalFields": {}
+      },
+      "id": "1fa130c1-140e-4ae7-8bab-11dccba85ac8",
+      "name": "Send: No News",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1024,
+        480
+      ],
+      "webhookId": "accffc7e-9f1c-4e9b-ba69-4d1bd1975aa1",
+      "credentials": {
+        "telegramApi": {
+          "id": "E1GyixjS6lmr6xtH",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 6
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        496,
+        288
+      ],
+      "id": "4b063d47-865a-4eb7-aab0-4dc1001cd7c7",
+      "name": "Merge"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger (Every 6 Hours)": {
+      "main": [
+        [
+          {
+            "node": "Fetch r/artificial",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch r/MachineLearning",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch r/technology",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch HackerNews IDs",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch TechCrunch RSS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch VentureBeat RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch r/artificial": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch r/MachineLearning": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Fetch r/technology": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Fetch HackerNews IDs": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Fetch TechCrunch RSS": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Fetch VentureBeat RSS": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "Merge & Filter News": {
+      "main": [
+        [
+          {
+            "node": "Has News?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has News?": {
+      "main": [
+        [
+          {
+            "node": "Format for Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send: No News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for Telegram": {
+      "main": [
+        [
+          {
+            "node": "Split Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Messages": {
+      "main": [
+        [
+          {
+            "node": "Send to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Merge & Filter News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "478bd230-3e97-49c2-8dc2-7dbd337ce5d6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4670bd8866d4df5618807b1a9eb29b8972440a4332d6bd550153fdb7a12ab774"
+  },
+  "id": "YsvpaSdkIM1mUUjY",
+  "tags": []
+}
